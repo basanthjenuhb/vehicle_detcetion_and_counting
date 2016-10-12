@@ -35,6 +35,7 @@ def get_closest(p1,new_centroids):
 			index = i
 	return index , minimum , new_centroids[index]
 
+# Function to check if any vehicle corsses the line
 def check(height,count,old_centroids,new_centroids,threshold):
 	# print(old_centroids)
 	# print(new_centroids)
@@ -63,7 +64,7 @@ def drawBoundingBox(opening,frame,count,min_length,width,height):
 		new_boxes.append((x,y,w,h))
 	cv2.line(frame,(0,height),(width,height),(0,255,255),3)
 	old_centroids , new_centroids = getCentroids(old_boxes) , getCentroids(new_boxes)
-	draw_previous()
+	# draw_previous()
 	count = check(height,count,old_centroids,new_centroids,40)
 	# print("\n",old_boxes)
 	# print(new_boxes,"\n","*"*150,"\n")
@@ -80,16 +81,33 @@ def getBackground(cam,count):
 	background = cv2.cvtColor(res,cv2.COLOR_BGR2GRAY)
 	return background
 
-cam = cv2.VideoCapture('../videos/CarsDrivingUnderBridge.mp4') # Defining the Camera
+# Adding the results to the output
+def display_final(frame,size,mask,count):
+	roi = frame[0:size[0],0:size[1]]
+	bg = cv2.bitwise_and(roi,roi,mask=mask)
+	frame[0:size[0],0:size[1]] = bg
+	font = cv2.FONT_HERSHEY_SIMPLEX
+	cv2.putText(frame,str(count),(220,80), font, 2,(0,0,0),3)
+	return frame
+
+source = '../videos/CarsDrivingUnderBridge.mp4'
+cam = cv2.VideoCapture(source) # Defining the Camera
 
 background = getBackground(cam,700) # Getting the background image
 # cv2.imshow('background',background)
 
 cam = cv2.VideoCapture('../videos/CarsDrivingUnderBridge.mp4') # Re-Defining the Camera
+
 kernel1 = np.ones((3,3),np.uint8)
 kernel2 = np.ones((5,5),np.uint8)
 width , height = background.shape[1] , background.shape[0]
 new_boxes , old_boxes ,count = [] , [] , 0
+
+# Car icon to display count at the top
+car = cv2.imread('car.png',0)
+size = car.shape
+ret , mask = cv2.threshold(car,220,255,cv2.THRESH_BINARY)
+
 while(1):
 	ret ,frame = cam.read()
 	if not ret:
@@ -108,6 +126,7 @@ while(1):
 	# cv2.imshow('thresh',thresh)
 	# cv2.imshow('erosion',erosion)
 	# cv2.imshow('dilate',dilation)
+	final = display_final(frame,size,mask,count)
 	cv2.imshow('final',final)
 	# print(boxes)
 	k = cv2.waitKey(100) & 0xFF
