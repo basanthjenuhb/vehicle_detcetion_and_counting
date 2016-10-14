@@ -30,9 +30,11 @@ def get_closest(p1,new_centroids):
 	minimum , index = sys.maxsize , 0
 	for i in range(len(new_centroids)):
 		d = distance(p1,new_centroids[i])
-		if d < minimum:
+		if d <= minimum:
 			minimum = d
 			index = i
+	# print(index,len(new_centroids))
+	if index == 0 and len(new_centroids) == 0:new_centroids.append(p1)
 	return index , minimum , new_centroids[index]
 
 # Function to check if any vehicle corsses the line
@@ -42,10 +44,20 @@ def check(height,count,old_centroids,new_centroids,threshold):
 	for p1 in old_centroids:
 		if p1[1] >= height:
 			index , distance , p2 = get_closest(p1,new_centroids)
-			# if distance > threshold:continue
+			if distance > threshold:continue
 			if p2[1] < height:
 				count += 1
-				print("count: ",count)
+				print("\r",end="")
+				print("Count: ",count,end="")
+				continue
+			# print(p1,p2,distance,height)
+		if p1[1] <= height:
+			index , distance , p2 = get_closest(p1,new_centroids)
+			if distance > threshold:continue
+			if p2[1] > height:
+				count += 1
+				print("\r",end="")
+				print("Count: ",count,end="")
 			# print(p1,p2,distance,height)
 	return count
 
@@ -62,7 +74,7 @@ def drawBoundingBox(opening,frame,count,min_length,width,height):
 		cx , cy = getCentroid(x,y,w,h)
 		cv2.circle(frame,(cx,cy),3,(255,0,0),3)
 		new_boxes.append((x,y,w,h))
-	cv2.line(frame,(0,height),(width,height),(0,255,255),3)
+	cv2.line(frame,(0,height),(width,height),(0,255,0),3)
 	old_centroids , new_centroids = getCentroids(old_boxes) , getCentroids(new_boxes)
 	# draw_previous()
 	count = check(height,count,old_centroids,new_centroids,40)
@@ -71,14 +83,18 @@ def drawBoundingBox(opening,frame,count,min_length,width,height):
 	return count , frame
 
 # Function to get the background from frames the by averaging
-def getBackground(cam,count):
+def getBackground(cam,count,step):
 	ret ,frame = cam.read()
 	avg = np.float32(frame)
-	for i in range(count):
-		ret ,frame = cam.read()
+	for i in range(1,count):
+		for j in range(step):ret ,frame = cam.read()
 		cv2.accumulateWeighted(frame,avg,0.01)
 		res = cv2.convertScaleAbs(avg)
+		print("\r",end="")
+		print("Initialising",int(i/count*100),"%",end="")
+	print("\rInitialising 100 %")
 	background = cv2.cvtColor(res,cv2.COLOR_BGR2GRAY)
+	cv2.imshow("final_frame",frame)
 	return background
 
 # Adding the results to the output
@@ -90,13 +106,12 @@ def display_final(frame,size,mask,count):
 	cv2.putText(frame,str(count),(220,80), font, 2,(0,0,0),3)
 	return frame
 
-source = '../videos/CarsDrivingUnderBridge.mp4'
+source = '../videos/c0.mp4'
 cam = cv2.VideoCapture(source) # Defining the Camera
+background = getBackground(cam,300,2) # Getting the background image
+cv2.imshow('background',background)
 
-background = getBackground(cam,700) # Getting the background image
-# cv2.imshow('background',background)
-
-cam = cv2.VideoCapture('../videos/CarsDrivingUnderBridge.mp4') # Re-Defining the Camera
+cam = cv2.VideoCapture(source) # Re-Defining the Camera
 
 kernel1 = np.ones((3,3),np.uint8)
 kernel2 = np.ones((5,5),np.uint8)
@@ -110,8 +125,7 @@ ret , mask = cv2.threshold(car,220,255,cv2.THRESH_BINARY)
 
 while(1):
 	ret ,frame = cam.read()
-	if not ret:
-		break
+	if not ret:break
 	# Preprocessing the image
 	frame_gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY) # Conversion to gray-scale
 	frame_diff = cv2.absdiff(background,frame_gray) # Background subtraction
@@ -127,10 +141,13 @@ while(1):
 	# cv2.imshow('erosion',erosion)
 	# cv2.imshow('dilate',dilation)
 	final = display_final(frame,size,mask,count)
+	cv2.namedWindow('final',cv2.WINDOW_NORMAL)
+	cv2.resizeWindow('final', 1366,768)
 	cv2.imshow('final',final)
 	# print(boxes)
-	k = cv2.waitKey(100) & 0xFF
+	k = cv2.waitKey(1) & 0xFF
 	if k == ord('q'):break
 
+print()
 cv2.destroyAllWindows()
 cam.release()
