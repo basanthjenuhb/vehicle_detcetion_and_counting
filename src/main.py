@@ -38,7 +38,7 @@ def get_closest(p1,new_centroids):
 	return index , minimum , new_centroids[index]
 
 # Function to check if any vehicle corsses the line
-def check(height,count,old_centroids,new_centroids,threshold):
+def check(height,count_cars,count_bikes,old_centroids,new_centroids,contours,threshold,area):
 	# print(old_centroids)
 	# print(new_centroids)
 	for p1 in old_centroids:
@@ -46,27 +46,31 @@ def check(height,count,old_centroids,new_centroids,threshold):
 			index , distance , p2 = get_closest(p1,new_centroids)
 			if distance > threshold:continue
 			if p2[1] < height:
-				count += 1
+				if cv2.contourArea(contours[index]) > area:
+					count_cars += 1
+				else:count_bikes += 1
 				print("\r",end="")
-				print("Count: ",count,end="")
+				# print("Count: ",count,end="")
 				continue
 			# print(p1,p2,distance,height)
 		if p1[1] <= height:
 			index , distance , p2 = get_closest(p1,new_centroids)
 			if distance > threshold:continue
 			if p2[1] > height:
-				count += 1
+				if cv2.contourArea(contours[index]) > area:
+					count_cars += 1
+				else:count_bikes += 1
 				print("\r",end="")
-				print("Count: ",count,end="")
+				# print("Count: ",count,end="")
 			# print(p1,p2,distance,height)
-	return count
+	return count_cars , count_bikes
 
 
 # Function to draw bounding box around contours
-def drawBoundingBox(opening,frame,count,min_length,width,height):
+def drawBoundingBox(opening,frame,count_cars,count_bikes,min_length,width,height):
 	global old_boxes , new_boxes
 	_,contours,hierarchy = cv2.findContours(opening,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-	old_boxes , new_boxes = new_boxes[:] , []
+	old_boxes , new_boxes , cnts = new_boxes[:] , [] , []
 	for cnt in contours:
 		x,y,w,h = cv2.boundingRect(cnt)
 		if w < min_length or h < min_length: continue
@@ -74,13 +78,14 @@ def drawBoundingBox(opening,frame,count,min_length,width,height):
 		cx , cy = getCentroid(x,y,w,h)
 		cv2.circle(frame,(cx,cy),3,(255,0,0),3)
 		new_boxes.append((x,y,w,h))
+		cnts.append(cnt)
 	cv2.line(frame,(0,height),(width,height),(0,255,0),3)
 	old_centroids , new_centroids = getCentroids(old_boxes) , getCentroids(new_boxes)
 	# draw_previous()
-	count = check(height,count,old_centroids,new_centroids,40)
+	count_cars , count_bikes = check(height,count_cars,count_bikes,old_centroids,new_centroids,cnts,40,7000) # or 12500
 	# print("\n",old_boxes)
 	# print(new_boxes,"\n","*"*150,"\n")
-	return count , frame
+	return count_cars , count_bikes , frame
 
 # Function to get the background from frames the by averaging
 def getBackground(cam,count,step):
@@ -98,12 +103,12 @@ def getBackground(cam,count,step):
 	return background
 
 # Adding the results to the output
-def display_final(frame,size,mask,count):
-	roi = frame[0:size[0],0:size[1]]
+def display_final(frame,size,mask,count,x1,y1,x2,y2):
+	roi = frame[x1:size[0]+x1,y1:size[1]+y1]
 	bg = cv2.bitwise_and(roi,roi,mask=mask)
-	frame[0:size[0],0:size[1]] = bg
+	frame[x1:size[0]+x1,y1:size[1]+y1] = bg
 	font = cv2.FONT_HERSHEY_SIMPLEX
-	cv2.putText(frame,str(count),(220,80), font, 2,(0,0,0),3)
+	cv2.putText(frame,str(count),(x2,y2), font, 2,(0,0,0),3)
 	return frame
 
 source = '../videos/c0.mp4'
@@ -116,12 +121,16 @@ cam = cv2.VideoCapture(source) # Re-Defining the Camera
 kernel1 = np.ones((3,3),np.uint8)
 kernel2 = np.ones((5,5),np.uint8)
 width , height = background.shape[1] , background.shape[0]
-new_boxes , old_boxes ,count = [] , [] , 0
+new_boxes , old_boxes ,count_cars,count_bikes = [] , [] , 0 , 0
 
 # Car icon to display count at the top
 car = cv2.imread('car.png',0)
-size = car.shape
-ret , mask = cv2.threshold(car,220,255,cv2.THRESH_BINARY)
+bike = cv2.imread('bike.png',0)
+size_car = car.shape
+bike = cv2.resize(bike,(int(bike.shape[0]/2),int(bike.shape[1]/2)))
+size_bike = bike.shape
+ret , mask_car = cv2.threshold(car,220,255,cv2.THRESH_BINARY)
+ret , mask_bike = cv2.threshold(bike,220,255,cv2.THRESH_BINARY)
 
 while(1):
 	ret ,frame = cam.read()
@@ -134,18 +143,19 @@ while(1):
 	dilation = cv2.dilate(erosion,kernel2 , iterations=2) # Filling holes by dilation
 	median = cv2.medianBlur(dilation,5) # Median filtering for smoothing
 	
-	count , final = drawBoundingBox(median,frame,count,30,width,int(height/2)) # Drawing contours
+	count_cars, count_bikes , final = drawBoundingBox(median,frame,count_cars,count_bikes,30,width,int(height/2)) # Drawing contours
 	# Displaying the frames
 	# cv2.imshow('median',median)
 	# cv2.imshow('thresh',thresh)
 	# cv2.imshow('erosion',erosion)
 	# cv2.imshow('dilate',dilation)
-	final = display_final(frame,size,mask,count)
+	final = display_final(frame,size_car,mask_car,count_cars,0,0,220,80)
+	final = display_final(final,size_bike,mask_bike,count_bikes,0,350,500,80)
 	cv2.namedWindow('final',cv2.WINDOW_NORMAL)
 	cv2.resizeWindow('final', 1366,768)
 	cv2.imshow('final',final)
 	# print(boxes)
-	k = cv2.waitKey(1) & 0xFF
+	k = cv2.waitKey(50) & 0xFF
 	if k == ord('q'):break
 
 print()
