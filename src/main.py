@@ -82,7 +82,7 @@ def drawBoundingBox(opening,frame,count_cars,count_bikes,min_length,width,height
 	cv2.line(frame,(0,height),(width,height),(0,255,0),3)
 	old_centroids , new_centroids = getCentroids(old_boxes) , getCentroids(new_boxes)
 	# draw_previous()
-	count_cars , count_bikes = check(height,count_cars,count_bikes,old_centroids,new_centroids,cnts,40,7000) # or 12500
+	count_cars , count_bikes = check(height,count_cars,count_bikes,old_centroids,new_centroids,cnts,40,12500) # 7000 or 12500
 	# print("\n",old_boxes)
 	# print(new_boxes,"\n","*"*150,"\n")
 	return count_cars , count_bikes , frame
@@ -111,7 +111,7 @@ def display_final(frame,size,mask,count,x1,y1,x2,y2):
 	cv2.putText(frame,str(count),(x2,y2), font, 2,(0,0,0),3)
 	return frame
 
-source = '../videos/c0.mp4'
+source = '../videos/c2.avi'
 cam = cv2.VideoCapture(source) # Defining the Camera
 background = getBackground(cam,300,2) # Getting the background image
 cv2.imshow('background',background)
@@ -155,7 +155,7 @@ while(1):
 	cv2.resizeWindow('final', 1366,768)
 	cv2.imshow('final',final)
 	# print(boxes)
-	k = cv2.waitKey(50) & 0xFF
+	k = cv2.waitKey(30) & 0xFF
 	if k == ord('q'):break
 
 print()
